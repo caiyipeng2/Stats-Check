@@ -12,7 +12,7 @@ public sealed class AppSettings
     public bool ShowRank { get; set; } = true;
     public bool ShowDiagnostics { get; set; }
     public string? FallbackPath { get; set; }
-    public bool FallbackAutoLaunch { get; set; }
+    public bool FallbackAutoLaunch { get; set; } = true;
     public string? FallbackArguments { get; set; }
     public double? WindowLeft { get; set; }
     public double? WindowTop { get; set; }

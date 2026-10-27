@@ -156,4 +156,38 @@ public static class GameflowParser
 
         return (gameId, queueId);
     }
+
+    public static int ParseLobbyQueueId(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return 0;
+        }
+
+        try
+        {
+            using var document = JsonHelpers.Parse(json);
+            var root = document.RootElement;
+            if (root.TryGetProperty("gameConfig", out var config) &&
+                config.ValueKind == JsonValueKind.Object)
+            {
+                var queueId = config.GetInt32("queueId");
+                if (queueId > 0)
+                {
+                    return queueId;
+                }
+
+                if (config.TryGetProperty("queue", out var queue) &&
+                    queue.ValueKind == JsonValueKind.Object)
+                {
+                    return queue.GetInt32("id");
+                }
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return 0;
+    }
 }

@@ -43,6 +43,10 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
     private DateTimeOffset _lastUpdated = DateTimeOffset.MinValue;
     private DateTimeOffset _nextGameflowProbe = DateTimeOffset.MinValue;
     private DateTimeOffset _nextLiveProbe = DateTimeOffset.MinValue;
+    private DateTimeOffset _nextLobbyProbe = DateTimeOffset.MinValue;
+    private int _idleQueueId;
+    private string _idleModeName = string.Empty;
+    private int _lobbyMisses;
     private string? _banner;
     private string _liveStatus = string.Empty;
     private int _forceRefreshRequested;
@@ -491,6 +495,11 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
             _client = null;
             _connection = ConnectionStatus.Disconnected;
             _liveStatus = string.Empty;
+            _queueId = 0;
+            _modeName = string.Empty;
+            _idleQueueId = 0;
+            _idleModeName = string.Empty;
+            _lobbyMisses = 0;
         }
 
         client?.Dispose();
@@ -512,21 +521,107 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
                 await HandleInGameAsync(phase, cancellationToken).ConfigureAwait(false);
                 break;
             default:
-                HandleIdle(phase);
+                await HandleIdleAsync(phase, cancellationToken).ConfigureAwait(false);
                 break;
         }
     }
 
-    private void HandleIdle(string phase)
+    private async Task HandleIdleAsync(string phase, CancellationToken cancellationToken)
     {
+        var normalized = string.IsNullOrWhiteSpace(phase) ? "None" : phase;
         lock (_stateLock)
         {
             ResetSessionLocked();
-            _phase = string.IsNullOrWhiteSpace(phase) ? "None" : phase;
+            _phase = normalized;
             Interlocked.Exchange(ref _forceRefreshRequested, 0);
         }
 
+        if (normalized is "Lobby" or "Matchmaking" or "ReadyCheck" or "None" or "EndOfGame" or "PreEndOfGame")
+        {
+            await TryReadLobbyModeAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        lock (_stateLock)
+        {
+            _queueId = _idleQueueId;
+            _modeName = _idleModeName;
+        }
+
         EmitCurrent();
+    }
+
+    private async Task TryReadLobbyModeAsync(CancellationToken cancellationToken)
+    {
+        var client = _client;
+        if (client is null)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.Now;
+        lock (_stateLock)
+        {
+            if (now < _nextLobbyProbe)
+            {
+                return;
+            }
+
+            _nextLobbyProbe = now.AddSeconds(3);
+        }
+
+        var queueId = 0;
+        var hasLobby = false;
+        try
+        {
+            var lobby = await client.TryGetStringAsync("/lol-lobby/v2/lobby", cancellationToken)
+                .ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(lobby))
+            {
+                hasLobby = true;
+                queueId = GameflowParser.ParseLobbyQueueId(lobby);
+            }
+
+            if (queueId == 0)
+            {
+                var session = await client.TryGetStringAsync("/lol-gameflow/v1/session", cancellationToken)
+                    .ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(session))
+                {
+                    queueId = GameflowParser.ParseSession(session).QueueId;
+                }
+            }
+        }
+        catch (LcuHttpException ex)
+        {
+            _log.Debug("读取房间模式失败：" + ex.Message);
+            return;
+        }
+        catch (JsonException ex)
+        {
+            _log.Debug("解析房间模式失败：" + ex.Message);
+            return;
+        }
+
+        lock (_stateLock)
+        {
+            if (queueId > 0)
+            {
+                _lobbyMisses = 0;
+                _idleQueueId = queueId;
+                _idleModeName = _queues.GetName(queueId);
+            }
+            else if (hasLobby)
+            {
+                _lobbyMisses = 0;
+                _idleQueueId = 0;
+                _idleModeName = string.Empty;
+            }
+            else if (++_lobbyMisses >= 3)
+            {
+                _idleQueueId = 0;
+                _idleModeName = string.Empty;
+            }
+        }
     }
 
     private async Task HandleChampSelectAsync(CancellationToken cancellationToken)
@@ -600,6 +695,13 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
             }
 
             _modeName = _queueId > 0 ? _queues.GetName(_queueId) : string.Empty;
+            if (_queueId > 0)
+            {
+                _idleQueueId = _queueId;
+                _idleModeName = _modeName;
+                _lobbyMisses = 0;
+            }
+
             _sessionKey = snapshot.SessionKey;
             _snapshot = snapshot;
             _postGameUntil = null;
@@ -607,7 +709,7 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
 
             var applied = ApplyChampSelectPlayersLocked(snapshot.AllPlayers);
             starts = force ? BeginForceReloadLocked() : applied;
-            autoFallback = ShouldAutoLaunchFallbackLocked(snapshot);
+            autoFallback = ShouldAutoLaunchFallbackLocked();
         }
 
         foreach (var (runtime, version) in starts)
@@ -772,7 +874,7 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
             {
                 var lobby = await client.TryGetStringAsync("/lol-lobby/v2/lobby", cancellationToken)
                     .ConfigureAwait(false);
-                queueId = ParseLobbyQueueId(lobby);
+                queueId = GameflowParser.ParseLobbyQueueId(lobby);
             }
         }
         catch (LcuHttpException ex)
@@ -797,42 +899,11 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
             {
                 _queueId = queueId;
                 _modeName = _queues.GetName(queueId);
+                _idleQueueId = queueId;
+                _idleModeName = _modeName;
+                _lobbyMisses = 0;
             }
         }
-    }
-
-    private static int ParseLobbyQueueId(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return 0;
-        }
-
-        try
-        {
-            using var document = JsonHelpers.Parse(json);
-            var root = document.RootElement;
-            if (root.TryGetProperty("gameConfig", out var config) &&
-                config.ValueKind == JsonValueKind.Object)
-            {
-                var queueId = config.GetInt32("queueId");
-                if (queueId > 0)
-                {
-                    return queueId;
-                }
-
-                if (config.TryGetProperty("queue", out var queue) &&
-                    queue.ValueKind == JsonValueKind.Object)
-                {
-                    return queue.GetInt32("id");
-                }
-            }
-        }
-        catch (JsonException)
-        {
-        }
-
-        return 0;
     }
 
     private DateTimeOffset ComputePostGameDeadlineLocked()
@@ -907,7 +978,7 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
         });
     }
 
-    private bool ShouldAutoLaunchFallbackLocked(ChampSelectSnapshot snapshot)
+    private bool ShouldAutoLaunchFallbackLocked()
     {
         if (_mock)
         {
@@ -915,12 +986,16 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
         }
 
         var settings = _settings.Current;
-        if (!settings.FallbackAutoLaunch || string.IsNullOrWhiteSpace(settings.FallbackPath))
+        if (!settings.FallbackAutoLaunch || !FallbackLauncher.IsAvailable(settings.FallbackPath))
         {
             return false;
         }
 
-        if (snapshot.AllPlayers.All(p => p.IsVisible))
+        var hasQueryFailure = _runtimes.Values.Any(runtime =>
+            runtime.IsVisible &&
+            runtime.CanRetry &&
+            runtime.Status is PlayerCardStatus.Unavailable or PlayerCardStatus.Error);
+        if (!hasQueryFailure)
         {
             return false;
         }
@@ -1044,30 +1119,65 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
         }
         else
         {
-            statusText = "已连接";
-            statusDetail = "等待进入 BP。";
-            trayText = "已连接";
+            var mode = string.IsNullOrWhiteSpace(_modeName) ? null : _modeName;
+            switch (_phase)
+            {
+                case "Lobby":
+                    statusText = "已进入房间";
+                    statusDetail = mode is null
+                        ? "正在识别房间模式…"
+                        : $"{mode} · 开始匹配后接受对局即可查看双方战绩。";
+                    trayText = "房间中";
+                    break;
+                case "Matchmaking":
+                    statusText = "正在匹配";
+                    statusDetail = mode is null
+                        ? "正在识别当前模式…"
+                        : $"{mode} · 接受对局后自动显示双方战绩。";
+                    trayText = "匹配中";
+                    break;
+                case "ReadyCheck":
+                    statusText = "等待接受对局";
+                    statusDetail = mode is null
+                        ? "已找到对局，正在识别模式…"
+                        : $"{mode} · 接受后进入 BP 并自动显示双方战绩。";
+                    trayText = "待接受";
+                    break;
+                case "EndOfGame":
+                case "PreEndOfGame":
+                    statusText = "对局结束";
+                    statusDetail = mode is null ? "等待返回大厅。" : $"{mode} · 等待返回大厅。";
+                    trayText = "已结束";
+                    break;
+                default:
+                    statusText = "已连接";
+                    statusDetail = mode is null
+                        ? "等待进入房间或 BP。"
+                        : $"{mode} · 进入 BP 后自动显示双方战绩。";
+                    trayText = "已连接";
+                    break;
+            }
         }
 
         string? banner = _banner;
         if (banner is null && _connection == ConnectionStatus.Connected)
         {
-            var hasFallback = !string.IsNullOrWhiteSpace(_settings.Current.FallbackPath);
+            var hasFallback = FallbackLauncher.IsAvailable(_settings.Current.FallbackPath);
             if (hasHidden && hasIssues)
             {
                 banner = hasFallback
-                    ? "部分玩家身份未公开或战绩查询失败：可重试，或使用已配置的兜底工具。"
-                    : "部分玩家身份未公开或战绩查询失败：可重试，或在设置中配置兜底工具。";
+                    ? "部分玩家身份未公开或战绩查询失败：可重试；查询失败时会自动使用兜底工具。"
+                    : "部分玩家身份未公开或战绩查询失败：可重试，或在设置中配置 LeagueAkari 兜底。";
             }
             else if (hasHidden)
             {
-                banner = hasFallback
-                    ? "对手身份未公开（客户端隐私保护）。进入对局后自动补齐，或使用兜底工具。"
-                    : "对手身份未公开（客户端隐私保护），属于客户端机制，无法通过本工具绕过。";
+                banner = "对手身份未公开（客户端隐私保护），本工具不会尝试绕过或解密。";
             }
             else if (hasIssues)
             {
-                banner = "部分玩家战绩查询未完成，可点击重试或稍后刷新。";
+                banner = hasFallback
+                    ? "部分玩家战绩查询未完成，已尝试启动兜底工具，也可点击重试。"
+                    : "部分玩家战绩查询未完成，可点击重试或在设置中配置 LeagueAkari。";
             }
         }
 

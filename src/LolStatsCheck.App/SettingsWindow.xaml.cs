@@ -24,6 +24,7 @@ public partial class SettingsWindow : Window
         FallbackPathBox.Text = _draft.FallbackPath ?? string.Empty;
         FallbackArgsBox.Text = _draft.FallbackArguments ?? string.Empty;
         FallbackAutoCheck.IsChecked = _draft.FallbackAutoLaunch;
+        UpdateFallbackHint();
         CurrentModeFirstCheck.IsChecked = _draft.CurrentModeFirst;
         ShowRankCheck.IsChecked = _draft.ShowRank;
         AlwaysOnTopCheck.IsChecked = _draft.AlwaysOnTop;
@@ -128,8 +129,36 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void OpenLogs_Click(object sender, RoutedEventArgs e)
+    private void UpdateFallbackHint()
     {
+        var resolved = FallbackLauncher.ResolvePath(_draft.FallbackPath);
+        if (resolved is null)
+        {
+            FallbackHint.Text = "未检测到 LeagueAkari：可点击“获取 LeagueAkari”前往官方发布页，或选择本机已安装的 exe。";
+            return;
+        }
+
+        var source = string.IsNullOrWhiteSpace(_draft.FallbackPath) ? "已自动检测到" : "当前使用";
+        FallbackHint.Text = $"{source}：{resolved}";
+    }
+
+    private void GetLeagueAkari_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "https://github.com/LeagueAkari/LeagueAkari/releases/latest",
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+        {
+            ShowError("无法打开浏览器：" + ex.Message);
+        }
+    }
+
+    private void OpenLogs_Click(object sender, RoutedEventArgs e)    {
         try
         {
             Directory.CreateDirectory(_settings.LogDirectory);

@@ -30,6 +30,7 @@ internal static class Program
         Run("设置归一化", TestSettingsNormalize);
         Run("设置读写与损坏配置回退", TestSettingsRoundTrip);
         Run("队列名称内置回退", TestQueueCatalog);
+        Run("兜底工具路径解析", TestFallbackResolution);
         Run("Mock 模式数据生成", TestMockData);
 
         var realFixtures = args.Where(a => !a.StartsWith("--", StringComparison.Ordinal)).ToArray();
@@ -592,10 +593,22 @@ internal static class Program
             catalog.EnsureLoadedAsync(CancellationToken.None).GetAwaiter().GetResult();
             Eq("单双排", catalog.GetName(420), "排位");
             Eq("极地大乱斗", catalog.GetName(450), "大乱斗");
-            Eq("大乱斗：狂欢", catalog.GetName(2400), "狂欢模式");
+            Eq("海克斯大乱斗", catalog.GetName(2400), "海克斯大乱斗");
+            Eq("海克斯大乱斗 巅峰赛", catalog.GetName(2410), "海克斯大乱斗巅峰赛");
+            Eq("无限乱斗", catalog.GetName(900), "无限乱斗");
+            Eq("冰雪无限火力", catalog.GetName(1010), "冰雪无限火力");
+            Eq("神木之门", catalog.GetName(2300), "神木之门");
+            Eq("快速匹配", catalog.GetName(490), "快速匹配");
             Eq("自定义", catalog.GetName(0), "自定义");
             Eq("队列 12345", catalog.GetName(12345), "未知队列");
             Eq("未知模式", catalog.GetName(-1), "非法队列");
+
+            Eq(420, GameflowParser.ParseLobbyQueueId("""{"gameConfig":{"queueId":420}}"""),
+                "大厅队列 queueId");
+            Eq(2400, GameflowParser.ParseLobbyQueueId("""{"gameConfig":{"queue":{"id":2400}}}"""),
+                "大厅队列 queue.id");
+            Eq(0, GameflowParser.ParseLobbyQueueId("""{"gameConfig":{}}"""), "大厅无队列");
+            Eq(0, GameflowParser.ParseLobbyQueueId(""), "空大厅");
         }
         finally
         {
@@ -612,8 +625,31 @@ internal static class Program
         }
     }
 
-    private static void TestMockData()
+    private static void TestFallbackResolution()
     {
+        var directory = Path.Combine(Path.GetTempPath(), "LolStatsCheckFallback-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var exe = Path.Combine(directory, "LeagueAkari.exe");
+            File.WriteAllText(exe, "stub");
+            Eq(exe, FallbackLauncher.ResolvePath(exe), "兜底工具绝对路径");
+            Eq(exe, FallbackLauncher.ResolvePath($"  \"{exe}\"  "), "兜底工具路径引号与空白");
+            Check(FallbackLauncher.IsAvailable(exe), "兜底工具可用性");
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    private static void TestMockData()    {
         var snapshot = MockData.CreateSnapshot(123456, tick: 0);
         Eq(MockData.MockQueueId, snapshot.QueueId, "Mock 队列");
         Eq(123456L, snapshot.GameId, "Mock 对局 ID");

@@ -1,6 +1,6 @@
 # 英雄联盟 BP 战绩速查工具 — 需求与方案
 
-- 版本：v1.0（已确认，进入开发）
+- 版本：v1.1（已确认，开发完成；v1.1 增补见第 12 节）
 - 日期：2026-10-27
 - 工作目录：`E:\Stats Check`
 - 目标交付：Windows x64 单文件 exe，双击即用
@@ -374,3 +374,43 @@ dotnet publish -c Release -r win-x64 --self-contained true `
 - [Patch 12.22 说明（Champ Select Anonymity）](https://www.leagueoflegends.com/en-gb/news/game-updates/patch-12-22-notes/)
 - [LCU / Riot Client API 文档](https://github.com/KebsCS/lcu-and-riotclient-api)
 - [Riot Live Client Data API](https://developer.riotgames.com/docs/lol#game-client-api_live-client-data-api)
+
+---
+
+## 12. v1.1 增补（2026-10-27）
+
+本节为 v1.1 的变更记录；与上文冲突处以本节为准。
+
+### 12.1 全模式覆盖与房间内模式识别
+
+- 内置国服官方模式目录（来源：CommunityDragon `global/zh_cn/v1/queues.json`，422 条），常用模式已本地化命名，包括单双排、灵活排位、匹配（自选/征召/快速）、大乱斗、海克斯大乱斗及其巅峰赛/经典模式版、无限乱斗、无限火力、快速模式、冠军杯赛、神木之门等。
+- 运行时通过 `GET /lol-game-queues/v1/queues` 合并客户端队列目录，新/限定模式无需更新 exe 即可显示官方名称。
+- 未收录队列按官方目录优先，其次显示 `队列 {id}`，并异步补充名称；不再出现“未知模式”占位。
+- 进入房间（Lobby）、匹配中（Matchmaking）、等待接受（ReadyCheck）即识别当前模式：
+  - 主路径 `GET /lol-lobby/v2/lobby` 的 `gameConfig.queueId`（兼容 `gameConfig.queue.id`）；
+  - 兜底 `GET /lol-gameflow/v1/session` 的 `gameData.queue.id`；
+  - 3 秒节流探测，连续 3 次取不到才清空；BP/对局阶段可直接复用房间缓存。
+- 悬浮窗在房间阶段显示“已进入房间 / 正在匹配 / 等待接受对局”，并把模式名同步到标题与托盘提示。
+- 支持范围说明：模式均按官方队列 ID 自动识别并展示 BP 数据；被 Riot 隐藏身份的玩家仍按 1.2 节合规策略显示占位。
+
+### 12.2 LeagueAkari 兜底工具接入（安全模式）
+
+用户要求把 LeagueAkari 一并打包并快速启用。经评估，**不随包分发二进制**，采用等价的“检测 + 一键获取 + 查询失败自动启用”方案：
+
+- **原因**：LeagueAkari 自带原生 `magic` 模块，可还原 BP 中被 Riot 混淆的玩家标识，属于 Riot 第三方应用政策明确禁止的“暴露混淆信息”；直接打包分发会同时放大账号风险与合规风险。本项目不捆绑、不改写、不调用其解密能力。
+- **自动检测**：启动器按 `LeagueAkari.exe` / `league-akari.exe` / `LeagueAkari-win-x64.exe` 在以下位置查找，也支持用户手动指定路径：
+  - 程序目录下 `fallback\LeagueAkari\`、`fallback\`（用户自行放入即视为“随工具打包”）；
+  - `%LOCALAPPDATA%\Programs\LeagueAkari`、`%LOCALAPPDATA%\LeagueAkari`、`%LOCALAPPDATA%\Programs\league-akari`、`%ProgramFiles%\LeagueAkari`、`%ProgramFiles(x86)%\LeagueAkari`。
+- **一键获取**：设置页“获取 LeagueAkari”按钮打开官方 Releases 页面，由用户自行下载安装；本工具不自动下载、不静默安装。
+- **自动启用**：开启“自研查询失败时自动启动兜底工具”后，仅当当前 BP 会话存在可见玩家查询失败（战绩服务不可用/接口错误）时自动启动一次；每个会话最多一次。
+- **身份隐藏不自动启动**：`nameVisibilityType = HIDDEN` 时仅显示合规说明，允许用户手动点击卡片按钮启动，风险自担。
+- 已在运行时不重复启动；路径无效时给出明确提示；不读取、不注入、不采集第三方工具数据。
+- 默认值：自动启动开关默认开启（新安装）；旧配置中显式保存的关闭状态保持不变。
+
+### 12.3 验收增补
+
+1. 在房间/匹配/待接受阶段能显示正确模式名；进入 BP 后模式名保持一致。
+2. 官方目录中的常见模式（含 900/1010/2300/2400/2410/2450 等）显示中文官方名。
+3. 设置页能自动检测已安装的 LeagueAkari 并显示路径；“获取 LeagueAkari”可打开官方页面。
+4. 战绩查询失败时按设置自动启动一次兜底工具；隐藏身份场景不自动启动。
+5. 保持仅访问 `127.0.0.1`；日志不含 token；不捆绑第三方二进制。
