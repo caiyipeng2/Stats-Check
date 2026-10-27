@@ -1,0 +1,25 @@
+{
+  "queueMap": {
+    "RANKED_FLEX_SR": {
+      "tier": "GOLD",
+      "division": "II",
+      "leaguePoints": 40,
+      "wins": 10,
+      "losses": 5
+    },
+    "RANKED_SOLO_5x5": {
+      "tier": "EMERALD",
+      "division": "III",
+      "leaguePoints": 77,
+      "wins": 30,
+      "losses": 20
+    },
+    "RANKED_TFT": {
+      "tier": "DIAMOND",
+      "division": "I",
+      "leaguePoints": 10,
+      "wins": 1,
+      "losses": 1
+    }
+  }
+}

@@ -4,11 +4,17 @@
     <ProjectReference Include="..\..\src\LolStatsCheck.Core\LolStatsCheck.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- 规避本机 .NET 9 + CET 影子栈的 CLR 断言崩溃，与主程序保持一致。 -->
+    <CETCompat>false</CETCompat>
   </PropertyGroup>
 
 </Project>

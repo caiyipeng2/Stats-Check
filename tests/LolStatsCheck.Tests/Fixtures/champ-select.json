@@ -1,0 +1,119 @@
+{
+  "gameId": 7000000001,
+  "queueId": 420,
+  "localPlayerCellId": 2,
+  "myTeam": [
+    {
+      "cellId": 0,
+      "championId": 103,
+      "championPickIntent": 0,
+      "assignedPosition": "top",
+      "puuid": "11111111-1111-4111-8111-111111111111",
+      "summonerId": 1001,
+      "displayName": "上单玩家",
+      "nameVisibilityType": "VISIBLE",
+      "isAutofilled": false
+    },
+    {
+      "cellId": 1,
+      "championId": 0,
+      "championPickIntent": 64,
+      "assignedPosition": "jungle",
+      "puuid": "22222222-2222-4222-8222-222222222222",
+      "summonerId": 1002,
+      "displayName": "打野玩家",
+      "nameVisibilityType": "VISIBLE",
+      "isAutofilled": true
+    },
+    {
+      "cellId": 2,
+      "championId": 99,
+      "championPickIntent": 0,
+      "assignedPosition": "middle",
+      "puuid": "33333333-3333-4333-8333-333333333333",
+      "summonerId": 1003,
+      "displayName": "本机玩家",
+      "nameVisibilityType": "VISIBLE",
+      "isAutofilled": false
+    },
+    {
+      "cellId": 3,
+      "championId": 0,
+      "championPickIntent": 22,
+      "assignedPosition": "bottom",
+      "puuid": "44444444-4444-4444-8444-444444444444",
+      "summonerId": 1004,
+      "displayName": "射手玩家",
+      "nameVisibilityType": "VISIBLE",
+      "isAutofilled": false
+    },
+    {
+      "cellId": 4,
+      "championId": 412,
+      "championPickIntent": 0,
+      "assignedPosition": "utility",
+      "puuid": "55555555-5555-4555-8555-555555555555",
+      "summonerId": 1005,
+      "displayName": "辅助玩家",
+      "nameVisibilityType": "VISIBLE",
+      "isAutofilled": false
+    }
+  ],
+  "theirTeam": [
+    {
+      "cellId": 0,
+      "championId": 0,
+      "championPickIntent": 0,
+      "assignedPosition": "top",
+      "puuid": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "summonerId": 2001,
+      "displayName": "隐藏对手一",
+      "nameVisibilityType": "HIDDEN",
+      "isAutofilled": false
+    },
+    {
+      "cellId": 1,
+      "championId": 121,
+      "championPickIntent": 0,
+      "assignedPosition": "jungle",
+      "puuid": "66666666-6666-4666-8666-666666666666",
+      "summonerId": 2002,
+      "displayName": "对手二",
+      "nameVisibilityType": "VISIBLE",
+      "isAutofilled": false
+    },
+    {
+      "cellId": 2,
+      "championId": 0,
+      "championPickIntent": 0,
+      "assignedPosition": "middle",
+      "puuid": "",
+      "summonerId": 0,
+      "displayName": "",
+      "nameVisibilityType": "HIDDEN",
+      "isAutofilled": false
+    },
+    {
+      "cellId": 3,
+      "championId": 0,
+      "championPickIntent": 0,
+      "assignedPosition": "bottom",
+      "puuid": "77777777-7777-4777-8777-777777777777",
+      "summonerId": 2004,
+      "displayName": "隐藏对手四",
+      "nameVisibilityType": "HIDDEN",
+      "isAutofilled": false
+    },
+    {
+      "cellId": 4,
+      "championId": 53,
+      "championPickIntent": 0,
+      "assignedPosition": "utility",
+      "puuid": "88888888-8888-4888-8888-888888888888",
+      "summonerId": 2005,
+      "displayName": "对手五",
+      "nameVisibilityType": "VISIBLE",
+      "isAutofilled": true
+    }
+  ]
+}
