@@ -11,6 +11,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
     <SatelliteResourceLanguages>zh-Hans</SatelliteResourceLanguages>
+    <CETCompat>false</CETCompat>
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 

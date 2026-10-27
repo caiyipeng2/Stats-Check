@@ -185,6 +185,11 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
         _log.Info("收到手动刷新请求");
         _playerData.ClearAll();
         Interlocked.Exchange(ref _forceRefreshRequested, 1);
+        lock (_stateLock)
+        {
+            _banner = null;
+        }
+
         if (_mock)
         {
             ResetMockLoading();
@@ -1047,13 +1052,18 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
         string? banner = _banner;
         if (banner is null && _connection == ConnectionStatus.Connected)
         {
+            var hasFallback = !string.IsNullOrWhiteSpace(_settings.Current.FallbackPath);
             if (hasHidden && hasIssues)
             {
-                banner = "部分玩家身份未公开或战绩查询失败：可重试，或使用已配置的兜底工具。";
+                banner = hasFallback
+                    ? "部分玩家身份未公开或战绩查询失败：可重试，或使用已配置的兜底工具。"
+                    : "部分玩家身份未公开或战绩查询失败：可重试，或在设置中配置兜底工具。";
             }
             else if (hasHidden)
             {
-                banner = "对手身份未公开（客户端隐私保护）。进入对局后自动补齐，或使用兜底工具。";
+                banner = hasFallback
+                    ? "对手身份未公开（客户端隐私保护）。进入对局后自动补齐，或使用兜底工具。"
+                    : "对手身份未公开（客户端隐私保护），属于客户端机制，无法通过本工具绕过。";
             }
             else if (hasIssues)
             {
@@ -1160,7 +1170,7 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
             message,
             runtime.Profile,
             runtime.Stats,
-            runtime.Rank,
+            _settings.Current.ShowRank ? runtime.Rank : null,
             runtime.IsAutofilled,
             runtime.IsLocalPlayer,
             runtime.IsVisible && runtime.CanRetry,
