@@ -2,10 +2,10 @@
 
 国服《英雄联盟》客户端 BP 阶段实时战绩速查工具：只读本机 LCU 接口，进入房间/BP 时自动识别当前模式，按“我方 / 敌方”展示双方玩家最近战绩、常用英雄与段位。
 
-- 版本：1.1.0
+- 版本：1.2.0
 - 平台：Windows 10/11 x64
-- 交付：单文件、免安装、免运行时的 `LolStatsCheck.exe`
-- 联网范围：仅 `127.0.0.1`（本机客户端 / Live Client Data）
+- 交付：免安装、免运行时的 `LolStatsCheck.exe`；同目录 `fallback\LeagueAkari\` 为内置兜底工具
+- 联网范围：本工具仅访问 `127.0.0.1`（本机客户端 / Live Client Data）；内置的 LeagueAkari 为独立第三方程序，其网络行为由其自身决定
 
 ## 功能
 
@@ -41,15 +41,16 @@
 
 ## 兜底工具：LeagueAkari
 
-自研查询失败（接口异常、战绩为空等）时，可按设置自动启动你本机安装的 [LeagueAkari](https://github.com/LeagueAkari/LeagueAkari)（MIT 开源）。本工具不附带、不下载第三方程序，也不读取或注入 LeagueAkari 的数据。
+发布包已内置 [LeagueAkari](https://github.com/LeagueAkari/LeagueAkari) v1.5.1（MIT 开源，原样二进制），无需另行下载。自研查询失败（接口异常、超时等）时，可按设置自动启动；也可在卡片或设置中手动启动。
 
-- 自动检测位置：程序目录下的 `fallback\LeagueAkari\LeagueAkari.exe`、`fallback\LeagueAkari.exe`，以及 `%LOCALAPPDATA%\Programs\LeagueAkari` 等常见安装目录。
-- 也可在“设置 → 兜底工具”中手动选择 exe；点击“获取 LeagueAkari”会打开官方最新发布页。
+- 自动检测位置：程序目录下的 `fallback\LeagueAkari\LeagueAkari.exe`（内置）、`fallback\LeagueAkari.exe`，以及 `%LOCALAPPDATA%\Programs\LeagueAkari` 等常见安装目录。
+- 也可在“设置 → 兜底工具”中手动选择其他版本的 exe。
 - 自动启动默认开启，每个对局最多一次；**仅在存在查询失败时触发**，玩家身份未公开时不会自动启动。
 - 隐藏身份玩家卡片上仍可手动点击兜底按钮；是否使用第三方工具及其账号风险由你自行判断。
 - LeagueAkari 内含的 `magic` 等身份还原能力属于 Riot 明确禁止的能力，本工具不调用、不配置、不自动化该能力。
+- LeagueAkari 是独立程序，可能自行发起外部网络请求；本工具不修改、不注入、不读取其数据。许可证与归属见 [NOTICE.md](NOTICE.md)。
 
-如需便携分发，可自行从官方发布页下载 `league-akari-win-x64.7z`，解压到 exe 旁的 `fallback\LeagueAkari\` 目录，程序会自动识别；本项目不随包分发该二进制。
+如自行构建且希望附带兜底工具，将从官方发布页下载的 `league-akari-win-x64.7z` 解压到仓库的 `vendor\LeagueAkari\`（该目录已被 git 忽略），`build.ps1` 会自动复制到发布目录。
 
 ## 构建
 
@@ -63,8 +64,7 @@ pwsh -File build.ps1
 pwsh -File build.ps1 -SkipTests
 ```
 
-产物：`dist\LolStatsCheck.exe`（自包含单文件，约 66 MB）。
-SHA256：`3505660AEFA6C3ADA20E0B8855466C1E2CB4EBE7073B7032F32A4FF0699968BC`
+产物：`dist\LolStatsCheck.exe`（自包含单文件，约 66 MB）与 `dist\fallback\LeagueAkari\`（约 336 MB）。如不需要兜底工具，可直接分发 exe，程序会退化为仅自研查询。
 
 手动发布命令：
 
@@ -94,7 +94,7 @@ dist\LolStatsCheck.exe --mock
 ## 隐私与合规
 
 - 只读取本机客户端公开数据与本地 Live Client Data；不注入、不读写游戏内存、不修改客户端。
-- 除 `127.0.0.1` 外不发起网络请求；不上传任何数据。
+- 本工具除 `127.0.0.1` 外不发起网络请求、不上传任何数据；内置的 LeagueAkari 为独立第三方程序，其网络行为不受本工具控制。
 - 日志不写入 remoting 认证令牌、完整 lockfile 或完整 PUUID（只记录前 8 位）。
 - 不提供 BP 身份解密、自动选人/接受/点赞/聊天等自动化能力。
 - 非官方工具，与 Riot Games、腾讯无关；使用风险由使用者自行承担。
@@ -102,10 +102,10 @@ dist\LolStatsCheck.exe --mock
 ## 已知限制
 
 - 单双排 BP 阶段被客户端隐藏的对手无法显示，进入对局后能否补齐取决于客户端是否公开身份。
-- 腾讯服战绩服务在夜间可能波动，失败时保留缓存并提示重试。
+- 国服战绩由腾讯 SGP 服务提供，夜间或服务波动时可能整体不可用（客户端自身战绩页也会失败），此时工具会提示“国服战绩服务暂不可用”，并在 BP 期间每 25 秒自动重试；已有缓存会继续展示。
 - 未做代码签名，首次运行可能触发 SmartScreen：选择“更多信息 → 仍要运行”。
 - 英雄/头像资源来自本机客户端，客户端未启动时无法加载头像。
 
 ## 许可与归属
 
-参考项目、第三方工具与商标归属见 [NOTICE.md](NOTICE.md)。发布产物不包含任何第三方项目的源码或二进制。
+参考项目、第三方工具与商标归属见 [NOTICE.md](NOTICE.md)。发布包内置 LeagueAkari v1.5.1 官方二进制（MIT），许可证见 [third_party/LeagueAkari-LICENSE.txt](third_party/LeagueAkari-LICENSE.txt)。

@@ -36,7 +36,7 @@ public sealed class FallbackLauncher
         {
             return configured is null
                 ? new FallbackLaunchResult(FallbackLaunchStatus.NotConfigured,
-                    "未检测到 LeagueAkari：可在设置中选择已安装的 LeagueAkari.exe，或点击“获取 LeagueAkari”。", null)
+                    "未找到 LeagueAkari 兜底工具：发布包应包含 fallback\\LeagueAkari，也可在设置中重新指定路径。", null)
                 : new FallbackLaunchResult(FallbackLaunchStatus.PathMissing,
                     "兜底工具路径不存在，请在设置中重新选择。", null);
         }
@@ -61,13 +61,15 @@ public sealed class FallbackLauncher
                 FileName = path,
                 Arguments = arguments ?? string.Empty,
                 WorkingDirectory = Path.GetDirectoryName(path) ?? Environment.CurrentDirectory,
-                UseShellExecute = true
+                UseShellExecute = false
             };
+            // Electron 应用会继承该变量并以 Node 模式启动后立即退出。
+            startInfo.Environment.Remove("ELECTRON_RUN_AS_NODE");
 
             var started = Process.Start(startInfo);
             _log.Info($"已启动兜底工具：{processName}");
             return new FallbackLaunchResult(FallbackLaunchStatus.Started,
-                "已启动兜底工具。", started?.Id);
+                "已启动 LeagueAkari 兜底工具（运行在系统托盘）。", started?.Id);
         }
         catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or IOException)
         {

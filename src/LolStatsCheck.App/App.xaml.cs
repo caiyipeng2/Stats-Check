@@ -67,6 +67,7 @@ public partial class App : Application
         _main = new MainWindow(_coordinator, _settings, _log, _images);
         MainWindow = _main;
         _main.SettingsRequested += (_, _) => OpenSettings();
+        _main.ExitRequested += (_, _) => ExitApplication();
         _main.UpdateApplied += (_, update) => _tray?.Update(update);
         _main.OverlayVisibilityChanged += visible => _tray?.SetOverlayVisible(visible);
 

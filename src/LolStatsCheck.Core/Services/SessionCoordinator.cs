@@ -44,6 +44,7 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
     private DateTimeOffset _nextGameflowProbe = DateTimeOffset.MinValue;
     private DateTimeOffset _nextLiveProbe = DateTimeOffset.MinValue;
     private DateTimeOffset _nextLobbyProbe = DateTimeOffset.MinValue;
+    private DateTimeOffset _nextHistoryRetry = DateTimeOffset.MinValue;
     private int _idleQueueId;
     private string _idleModeName = string.Empty;
     private int _lobbyMisses;
@@ -668,6 +669,7 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
 
         var force = Interlocked.Exchange(ref _forceRefreshRequested, 0) == 1;
         List<(PlayerRuntime Runtime, int Version)> starts;
+        List<(PlayerRuntime Runtime, int Version)> historyRetries;
         bool autoFallback;
         lock (_stateLock)
         {
@@ -709,12 +711,18 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
 
             var applied = ApplyChampSelectPlayersLocked(snapshot.AllPlayers);
             starts = force ? BeginForceReloadLocked() : applied;
+            historyRetries = force ? new() : BeginHistoryRetryLocked();
             autoFallback = ShouldAutoLaunchFallbackLocked();
         }
 
         foreach (var (runtime, version) in starts)
         {
             StartPlayerLoad(runtime, version, force, cancellationToken);
+        }
+
+        foreach (var (runtime, version) in historyRetries)
+        {
+            StartPlayerLoad(runtime, version, force: true, cancellationToken);
         }
 
         if (autoFallback)
@@ -811,6 +819,7 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
         }
 
         List<(PlayerRuntime Runtime, int Version)> starts = new();
+        List<(PlayerRuntime Runtime, int Version)> historyRetries;
         List<LiveResolveWork> resolves = new();
         lock (_stateLock)
         {
@@ -825,6 +834,8 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
                 resolves = result.Resolves;
                 _liveStatus = result.Status;
             }
+
+            historyRetries = BeginHistoryRetryLocked();
         }
 
         foreach (var work in resolves)
@@ -833,6 +844,11 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
         }
 
         foreach (var (runtime, version) in starts)
+        {
+            StartPlayerLoad(runtime, version, force: true, cancellationToken);
+        }
+
+        foreach (var (runtime, version) in historyRetries)
         {
             StartPlayerLoad(runtime, version, force: true, cancellationToken);
         }
@@ -949,6 +965,7 @@ public sealed partial class SessionCoordinator : IAsyncDisposable
         _postGameUntil = null;
         _nextGameflowProbe = DateTimeOffset.MinValue;
         _nextLiveProbe = DateTimeOffset.MinValue;
+        _nextHistoryRetry = DateTimeOffset.MinValue;
     }
 
     private void SetBanner(string? message)

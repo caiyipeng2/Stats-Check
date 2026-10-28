@@ -1,6 +1,6 @@
 # NOTICE
 
-本仓库包含原创代码，并在设计调研阶段参考了以下公开项目与文档。除明确列出的运行时组件外，发布产物中不包含任何第三方项目的源码、二进制或数据。
+本仓库包含原创代码，并在设计调研阶段参考了以下公开项目与文档。发布产物除 .NET 运行时外，还附带 LeagueAkari 官方二进制作为可选兜底工具（见下文）。
 
 ## 参考项目（仅参考，未复制代码）
 
@@ -11,13 +11,18 @@
 | [rank-analysis](https://github.com/wnzzer/rank-analysis) | MIT | 战绩统计与悬浮窗交互思路 |
 | [lcu-and-riotclient-api](https://github.com/KebsCS/lcu-and-riotclient-api) | 文档 | LCU 本地接口说明 |
 
-上述项目与本项目不存在代码托管、打包或分发关系；本项目不包含 LeagueAkari 的 `magic` 解密模块，也不包含任何身份还原逻辑。
+上述源码项目与本项目不存在代码托管关系；本项目不包含 LeagueAkari 的 `magic` 解密模块，也不包含任何身份还原逻辑。
+
+## 内置兜底工具（随发布包附带）
+
+| 工具 | 版本 | 许可证 | 说明 |
+| --- | --- | --- | --- |
+| [LeagueAkari](https://github.com/LeagueAkari/LeagueAkari) | v1.5.1 | MIT | 随发布包以原样二进制形式置于 `fallback\LeagueAkari\`，许可证见 [third_party/LeagueAkari-LICENSE.txt](third_party/LeagueAkari-LICENSE.txt)（Electron/Chromium 许可文本亦随目录附带）。本项目仅在自研查询失败时按设置启动该程序，默认参数为空；不修改、不注入、不读取其数据，不调用其 `magic` 身份还原能力，也不会因隐藏身份而自动启动。第三方程序可能自行发起外部网络请求，其行为与账号风险由使用者自行判断。 |
 
 ## 外部兜底工具（不打包、不分发）
 
 | 工具 | 许可证 | 说明 |
 | --- | --- | --- |
-| [LeagueAkari](https://github.com/LeagueAkari/LeagueAkari) | MIT | 可选兜底。本项目仅自动检测用户本机已安装的 LeagueAkari（或用户自行放置在程序目录 `fallback\LeagueAkari` 下的副本），在自研查询失败时按设置启动；不随仓库或发布包提供其二进制，不读取/注入其数据，不调用其 `magic` 身份还原能力，也不会因隐藏身份而自动启动。其能力、兼容性与账号风险由用户自行承担。 |
 | [HH-Lol-Prophet](https://github.com/real-web-world/hh-lol-prophet) | MIT | 备选外部程序。用户自行下载与配置，本项目只提供按用户配置路径启动的入口，不修改、不注入、不读取其数据。 |
 
 ## 运行时与平台组件

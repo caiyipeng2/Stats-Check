@@ -18,7 +18,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" BorderBrush="#1A2432" BorderThickness="0,0,0,1"
+                <Border Grid.Row="0" Background="Transparent" BorderBrush="#1A2432" BorderThickness="0,0,0,1"
                         MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                     <Grid Margin="22,0,14,0">
                         <Grid.ColumnDefinitions>

@@ -18,7 +18,7 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" BorderBrush="#1A2432" BorderThickness="0,0,0,1"
+                <Border Grid.Row="0" Background="Transparent" BorderBrush="#1A2432" BorderThickness="0,0,0,1"
                         MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                     <Grid Margin="22,0,14,0">
                         <Grid.ColumnDefinitions>
@@ -126,7 +126,7 @@
                                     <Border Background="#16130C" BorderBrush="#3A3220" BorderThickness="1" CornerRadius="8"
                                             Padding="12,9" Margin="0,0,0,14">
                                         <TextBlock Style="{StaticResource FormHint}" Foreground="#C9B487"
-                                                   Text="优先自研查询。查询失败时才会启用你自行安装的 LeagueAkari（MIT 开源），本工具不附带、不下载第三方程序，也不会自动还原客户端隐藏身份。" />
+                                                   Text="已内置 LeagueAkari v1.5.1（MIT 开源）作为兜底。查询失败时才会启用，不会自动还原客户端隐藏身份；也可在下方选择本机其他版本。" />
                                     </Border>
 
                                     <TextBlock Text="程序路径（留空自动检测）" Style="{StaticResource HudLabel}" Margin="0,0,0,6" />
@@ -139,7 +139,7 @@
                                         <TextBox x:Name="FallbackPathBox" Style="{StaticResource HudTextBox}" />
                                         <Button Grid.Column="1" Style="{StaticResource PillButton}" Content="浏览…"
                                                 Height="32" Padding="14,0" Margin="8,0,0,0" Click="BrowseFallback_Click" />
-                                        <Button Grid.Column="2" Style="{StaticResource PillButton}" Content="获取 LeagueAkari"
+                                        <Button Grid.Column="2" Style="{StaticResource PillButton}" Content="官方发布页"
                                                 Height="32" Padding="14,0" Margin="8,0,0,0" Click="GetLeagueAkari_Click" />
                                     </Grid>
                                     <TextBlock x:Name="FallbackHint" Style="{StaticResource FormHint}" Margin="0,6,0,0"

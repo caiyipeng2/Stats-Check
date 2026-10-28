@@ -204,12 +204,59 @@ public sealed partial class SessionCoordinator
         return starts;
     }
 
+    private List<(PlayerRuntime Runtime, int Version)> BeginHistoryRetryLocked()
+    {
+        var starts = new List<(PlayerRuntime, int)>();
+        var now = DateTimeOffset.Now;
+        if (now < _nextHistoryRetry)
+        {
+            return starts;
+        }
+
+        foreach (var runtime in _runtimes.Values)
+        {
+            if (!runtime.IsVisible || runtime.Loading ||
+                !ChampSelectParser.IsValidPuuid(runtime.Puuid))
+            {
+                continue;
+            }
+
+            if (!runtime.CanRetry ||
+                runtime.Status is not (PlayerCardStatus.Unavailable or PlayerCardStatus.Error))
+            {
+                continue;
+            }
+
+            runtime.Version++;
+            runtime.Loading = true;
+            runtime.UpdatedAt = now;
+            starts.Add((runtime, runtime.Version));
+        }
+
+        if (starts.Count > 0)
+        {
+            _nextHistoryRetry = now.AddSeconds(25);
+        }
+
+        return starts;
+    }
+
     private void StartPlayerLoad(
         PlayerRuntime runtime, int version, bool force, CancellationToken cancellationToken)
     {
         if (!cancellationToken.CanBeCanceled)
         {
             return;
+        }
+
+        lock (_stateLock)
+        {
+            if (runtime.Version != version || !runtime.IsVisible)
+            {
+                return;
+            }
+
+            runtime.Loading = true;
         }
 
         _ = LoadPlayerAsync(runtime, version, force, cancellationToken);

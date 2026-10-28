@@ -5,6 +5,7 @@ TestResults/
 publish/
 dist/
 artifacts/
+vendor/
 *.user
 *.suo
 *.log

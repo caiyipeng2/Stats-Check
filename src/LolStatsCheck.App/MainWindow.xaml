@@ -225,7 +225,7 @@
                     <RowDefinition Height="30" />
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0" BorderBrush="#18212E" BorderThickness="0,0,0,1"
+                <Border Grid.Row="0" Background="Transparent" BorderBrush="#18212E" BorderThickness="0,0,0,1"
                         MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
                     <Grid Margin="16,0,12,0">
                         <Grid.ColumnDefinitions>
@@ -288,8 +288,12 @@
                                           Content="&#xE718;" Click="Pin_Click" ToolTip="窗口始终置顶" />
                             <Button Style="{StaticResource IconButton}" Content="&#xE713;"
                                     Command="{Binding SettingsCommand}" ToolTip="设置" />
+                            <Button Style="{StaticResource IconButton}" Content="&#xE921;"
+                                    Click="Minimize_Click" AutomationProperties.Name="最小化"
+                                    ToolTip="最小化到托盘（Ctrl+Alt+L 呼出）" />
                             <Button Style="{StaticResource IconButton}" Content="&#xE8BB;"
-                                    Command="{Binding HideCommand}" ToolTip="隐藏到托盘（Esc）" />
+                                    Click="Close_Click" AutomationProperties.Name="关闭"
+                                    ToolTip="关闭工具" />
                         </StackPanel>
                     </Grid>
                 </Border>

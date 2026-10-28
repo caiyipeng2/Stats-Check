@@ -93,6 +93,11 @@ public sealed class PlayerDataService
                 ex.StatusCode == 403 ? LcuDataStatus.Forbidden : LcuDataStatus.NotFound,
                 ex.StatusCode == 403 ? "战绩不可见" : "暂无战绩", false);
         }
+        catch (LcuHttpException ex) when (ex.StatusCode is 429 or 500 or 502 or 503 or 504)
+        {
+            _log.Warn($"战绩服务暂时不可用（HTTP {ex.StatusCode}）：{Short(puuid)}");
+            return FromError(cached, LcuDataStatus.Unavailable, "国服战绩服务暂不可用，稍后自动重试");
+        }
         catch (LcuTimeoutException)
         {
             _log.Warn($"查询战绩超时：{Short(puuid)}");
@@ -239,7 +244,7 @@ public sealed class PlayerDataService
         if (cached is not null)
         {
             return new HistoryFetchResult(cached.Matches, cached.TotalAvailable,
-                status, message + "，已显示缓存数据", true);
+                status, message, true);
         }
 
         return new HistoryFetchResult(Array.Empty<MatchRecord>(), 0, status, message, false);

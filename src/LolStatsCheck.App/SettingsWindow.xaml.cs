@@ -134,7 +134,7 @@ public partial class SettingsWindow : Window
         var resolved = FallbackLauncher.ResolvePath(_draft.FallbackPath);
         if (resolved is null)
         {
-            FallbackHint.Text = "未检测到 LeagueAkari：可点击“获取 LeagueAkari”前往官方发布页，或选择本机已安装的 exe。";
+            FallbackHint.Text = "未检测到 LeagueAkari：发布包应包含 fallback\\LeagueAkari，缺失时可点击“官方发布页”手动下载，或选择本机已安装的 exe。";
             return;
         }
 

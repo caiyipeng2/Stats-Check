@@ -57,6 +57,7 @@ public partial class MainWindow : Window
 
     public event EventHandler? SettingsRequested;
     public event EventHandler<SessionUpdate>? UpdateApplied;
+    public event EventHandler? ExitRequested;
     public event Action<bool>? OverlayVisibilityChanged;
 
     public void ApplySettings()
@@ -225,6 +226,11 @@ public partial class MainWindow : Window
         {
         }
     }
+
+    private void Minimize_Click(object sender, RoutedEventArgs e) => HideByUser();
+
+    private void Close_Click(object sender, RoutedEventArgs e) =>
+        ExitRequested?.Invoke(this, EventArgs.Empty);
 
     private void ResizeThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
     {

@@ -1,4 +1,7 @@
+using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.RegularExpressions;
 using LolStatsCheck.Core.Services;
 
@@ -6,6 +9,8 @@ namespace LolStatsCheck.Core.Lcu;
 
 public sealed partial class LcuLocator
 {
+    private const int ProcessQueryLimitedInformation = 0x1000;
+
     private readonly LogService _log;
 
     public LcuLocator(LogService log)
@@ -15,12 +20,31 @@ public sealed partial class LcuLocator
 
     public LcuLocation? Locate(string? savedPath)
     {
-        var processPaths = GetRunningClientPaths();
-        var directories = new List<string>();
+        var processes = GetRunningClientProcesses();
 
-        foreach (var path in processPaths)
+        foreach (var process in processes)
         {
-            AddDirectoryVariants(directories, path);
+            var credentials = TryReadCommandLine(process.ProcessId);
+            if (credentials is null)
+            {
+                continue;
+            }
+
+            var exePath = process.ExePath ?? string.Empty;
+            var source = string.IsNullOrWhiteSpace(exePath)
+                ? process.ProcessId.ToString()
+                : exePath;
+            _log.Info($"已通过进程命令行发现客户端：{source}（端口 {credentials.Port}）");
+            return new LcuLocation(exePath, credentials, "process");
+        }
+
+        var directories = new List<string>();
+        foreach (var process in processes)
+        {
+            if (!string.IsNullOrWhiteSpace(process.ExePath))
+            {
+                AddDirectoryVariants(directories, process.ExePath);
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(savedPath))
@@ -40,16 +64,6 @@ public sealed partial class LcuLocator
             {
                 _log.Info($"已通过 lockfile 发现客户端：{location.ClientExePath}");
                 return location;
-            }
-        }
-
-        foreach (var exePath in processPaths)
-        {
-            var credentials = TryReadCommandLine(exePath);
-            if (credentials is not null)
-            {
-                _log.Info($"已通过进程命令行发现客户端：{exePath}");
-                return new LcuLocation(exePath, credentials, "process");
             }
         }
 
@@ -98,6 +112,12 @@ public sealed partial class LcuLocator
                 return null;
             }
 
+            if (!IsLockfileOwnerAlive(content))
+            {
+                _log.Debug($"忽略过期 lockfile：{lockfilePath}");
+                return null;
+            }
+
             var exePath = FindClientExe(directory) ?? string.Empty;
             return new LcuLocation(exePath, credentials, "lockfile");
         }
@@ -107,46 +127,71 @@ public sealed partial class LcuLocator
         }
     }
 
-    private LcuCredentials? TryReadCommandLine(string exePath)
+    private static bool IsLockfileOwnerAlive(string content)
+    {
+        var parts = content.Trim().Split(':');
+        if (parts.Length < 2 || !int.TryParse(parts[1], out var pid) || pid <= 0)
+        {
+            return true;
+        }
+
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+        catch (Win32Exception)
+        {
+            return true;
+        }
+    }
+
+    private LcuCredentials? TryReadCommandLine(int processId)
     {
         try
         {
-            var processName = Path.GetFileNameWithoutExtension(exePath);
-            foreach (var process in Process.GetProcessesByName(processName))
+            using var process = Process.GetProcessById(processId);
+            var commandLine = ProcessCommandLineReader.TryRead(process);
+            if (string.IsNullOrWhiteSpace(commandLine))
             {
-                using (process)
-                {
-                    var commandLine = ProcessCommandLineReader.TryRead(process);
-                    if (string.IsNullOrWhiteSpace(commandLine))
-                    {
-                        continue;
-                    }
-
-                    var portMatch = AppPortRegex().Match(commandLine);
-                    var tokenMatch = AuthTokenRegex().Match(commandLine);
-                    if (!portMatch.Success || !tokenMatch.Success)
-                    {
-                        continue;
-                    }
-
-                    if (!int.TryParse(portMatch.Groups[1].Value, out var port) || port <= 0)
-                    {
-                        continue;
-                    }
-
-                    var token = tokenMatch.Groups[1].Success
-                        ? tokenMatch.Groups[1].Value
-                        : tokenMatch.Groups[2].Value;
-                    return new LcuCredentials(port, token);
-                }
+                return null;
             }
+
+            var portMatch = AppPortRegex().Match(commandLine);
+            var tokenMatch = AuthTokenRegex().Match(commandLine);
+            if (!portMatch.Success || !tokenMatch.Success)
+            {
+                return null;
+            }
+
+            if (!int.TryParse(portMatch.Groups[1].Value, out var port) || port <= 0 || port > 65535)
+            {
+                return null;
+            }
+
+            var token = tokenMatch.Groups[1].Success
+                ? tokenMatch.Groups[1].Value
+                : tokenMatch.Groups[2].Value;
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return null;
+            }
+
+            return new LcuCredentials(port, token);
         }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception)
         {
             _log.Debug("读取进程命令行失败：" + ex.Message);
+            return null;
         }
-
-        return null;
     }
 
     private static string? FindClientExe(string directory)
@@ -161,9 +206,11 @@ public sealed partial class LcuLocator
         return File.Exists(nested) ? nested : null;
     }
 
-    private static List<string> GetRunningClientPaths()
+    private sealed record ClientProcess(int ProcessId, string? ExePath);
+
+    private static List<ClientProcess> GetRunningClientProcesses()
     {
-        var result = new List<string>();
+        var result = new List<ClientProcess>();
         foreach (var name in new[] { "LeagueClientUx", "LeagueClient" })
         {
             try
@@ -172,17 +219,7 @@ public sealed partial class LcuLocator
                 {
                     using (process)
                     {
-                        try
-                        {
-                            var path = process.MainModule?.FileName;
-                            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
-                            {
-                                result.Add(path);
-                            }
-                        }
-                        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
-                        {
-                        }
+                        result.Add(new ClientProcess(process.Id, TryGetProcessPath(process)));
                     }
                 }
             }
@@ -192,6 +229,46 @@ public sealed partial class LcuLocator
         }
 
         return result;
+    }
+
+    private static string? TryGetProcessPath(Process process)
+    {
+        try
+        {
+            var path = process.MainModule?.FileName;
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            {
+                return path;
+            }
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        {
+        }
+
+        IntPtr handle = IntPtr.Zero;
+        try
+        {
+            handle = OpenProcess(ProcessQueryLimitedInformation, false, process.Id);
+            if (handle == IntPtr.Zero)
+            {
+                return null;
+            }
+
+            var buffer = new StringBuilder(1024);
+            var size = buffer.Capacity;
+            return QueryFullProcessImageName(handle, 0, buffer, ref size) ? buffer.ToString() : null;
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        {
+            return null;
+        }
+        finally
+        {
+            if (handle != IntPtr.Zero)
+            {
+                CloseHandle(handle);
+            }
+        }
     }
 
     private static IEnumerable<string> GetCommonInstallRoots()
@@ -250,4 +327,14 @@ public sealed partial class LcuLocator
 
     [GeneratedRegex(@"--remoting-auth-token[= ]\s*(?:""([^""]+)""|([^\s""]+))")]
     private static partial Regex AuthTokenRegex();
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(int desiredAccess, bool inheritHandle, int processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool QueryFullProcessImageName(
+        IntPtr process, int flags, StringBuilder exeName, ref int size);
 }
